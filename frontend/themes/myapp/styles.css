@@ -1,0 +1,15 @@
+@import url('./views/transaction-view.css');
+@import url('./views/transaction-landing-page-view.css');
+@import url('line-awesome/dist/line-awesome/css/line-awesome.min.css');    html {
+      --lumo-border-radius: 0px;
+      --lumo-size-xl: 3rem;
+      --lumo-size-l: 2.5rem;
+      --lumo-size-m: 2rem;
+      --lumo-size-s: 1.75rem;
+      --lumo-size-xs: 1.5rem;
+      --lumo-primary-color: hsl(138, 73%, 33%);
+      --lumo-primary-color-50pct: hsla(138, 73%, 33%, 0.5);
+      --lumo-primary-color-10pct: hsla(138, 73%, 33%, 0.1);
+      --lumo-primary-text-color: hsl(214, 30%, 34%);
+
+    }
