@@ -1,31 +1,48 @@
 package com.example.application.views.transaction;
 
+import com.example.application.data.entity.SamplePerson;
+import com.example.application.data.service.SamplePersonService;
+import com.example.application.views.transactionlandingpage.TransactionLandingPageView;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.contextmenu.MenuItem;
+import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.*;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.menubar.MenuBar;
+import com.vaadin.flow.component.menubar.MenuBarVariant;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
-import com.vaadin.flow.component.textfield.EmailField;
-import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.component.splitlayout.SplitLayout;
+import com.vaadin.flow.component.splitlayout.SplitLayoutVariant;
 import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.Route;
-import com.vaadin.flow.router.RouteAlias;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import com.vaadin.flow.data.provider.DataProvider;
+import com.vaadin.flow.router.*;
+import org.vaadin.tatu.BeanTable;
+
+import java.util.*;
 
 @PageTitle("Transaction")
-@Route(value = "transaction")
+@Route(value = "transaction/:samplePersonID?/:action?(edit)")
 @RouteAlias(value = "")
-public class TransactionView extends Div {
+public class TransactionView extends Div implements BeforeEnterObserver {
+
+    private final String SAMPLEPERSON_ID = "samplePersonID";
 
     private static final Set<String> states = new LinkedHashSet<>();
     private static final Set<String> countries = new LinkedHashSet<>();
+
+
 
     static {
         states.addAll(Arrays.asList("Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut",
@@ -73,15 +90,36 @@ public class TransactionView extends Div {
                 "Zimbabwe"));
     }
 
-    public TransactionView() {
+    private TextField firstName;
+    private TextField lastName;
+    private TextField email;
+    private TextField phone;
+    private DatePicker dateOfBirth;
+    private TextField occupation;
+    private Checkbox important;
+    private Button cancel = new Button("cancel");
+    private Button save = new Button("Save");
+
+
+    private final SamplePersonService samplePersonService;
+
+
+
+    public TransactionView(SamplePersonService samplePersonService) {
+        this.samplePersonService = samplePersonService;
         addClassNames("transaction-view", "flex", "flex-col", "h-full");
+//        setSizeFull();
+//        Main content = new Main();
+//        content.addClassNames("grid", "gap-xl", "items-start", "justify-center", "max-w-screen-md", "mx-auto", "pb-l",
+//                "px-l");
+//
+//        content.setSizeFull();
 
-        Main content = new Main();
-        content.addClassNames("grid", "gap-xl", "items-start", "justify-center", "max-w-screen-md", "mx-auto", "pb-l",
-                "px-l");
-
-        content.add(createCheckoutForm());
-        content.add(createAside());
+        SplitLayout content  = new SplitLayout();
+        content.addToPrimary(createCheckoutForm());
+        content.addToSecondary(createAside());
+        content.addThemeVariants(SplitLayoutVariant.LUMO_MINIMAL);
+        content.getPrimaryComponent().getElement().getStyle().set("width" ,"60%");
         add(content);
     }
 
@@ -95,106 +133,221 @@ public class TransactionView extends Div {
         note.addClassNames("mb-xl", "mt-0", "text-secondary");
         checkoutForm.add(header, note);
 
-        checkoutForm.add(createPersonalDetailsSection());
-        checkoutForm.add(createShippingAddressSection());
+        checkoutForm.add(createEditorLayout());
+        checkoutForm.add(fromAccntSelection());
+        checkoutForm.add(toAccntSelection());
         checkoutForm.add(createPaymentInformationSection());
         checkoutForm.add(new Hr());
         checkoutForm.add(createFooter());
-
         return checkoutForm;
     }
 
-    private Section createPersonalDetailsSection() {
-        Section personalDetails = new Section();
-        personalDetails.addClassNames("flex", "flex-col", "mb-xl", "mt-m");
+    Grid<SamplePerson> fromAccntGrid = new Grid<>(SamplePerson.class, false);
+    private VerticalLayout createFromAccntLayout() {
 
-        Paragraph stepOne = new Paragraph("Checkout 1/3");
-        stepOne.addClassNames("m-0", "text-s", "text-secondary");
+        fromAccntGrid.addColumn(SamplePerson::getFirstName).setHeader("First name");
+        fromAccntGrid.addColumn(SamplePerson::getLastName).setHeader("Last name");
+        fromAccntGrid.addColumn(SamplePerson::getEmail).setHeader("Email");
+        fromAccntGrid.addColumn(SamplePerson::getPhone).setHeader("Phone");
+        fromAccntGrid.addColumn(SamplePerson::getDateOfBirth).setHeader("DOB");
+        fromAccntGrid.setVisible(false);
 
-        H3 header = new H3("Personal details");
-        header.addClassNames("mb-m", "mt-s", "text-2xl");
 
-        TextField name = new TextField("Name");
-        name.setRequiredIndicatorVisible(true);
-        name.setPattern("[\\p{L} \\-]+");
-        name.addClassNames("mb-s");
+        VerticalLayout dialogLayout = new VerticalLayout(fromAccntGrid);
+        dialogLayout.setPadding(false);
+        dialogLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
+        dialogLayout.getStyle().set("min-width", "300px")
+                .set("max-width", "100%").set("height", "100%");
 
-        EmailField email = new EmailField("Email address");
-        email.setRequiredIndicatorVisible(true);
-        email.addClassNames("mb-s");
-
-        TextField phone = new TextField("Phone number");
-        phone.setRequiredIndicatorVisible(true);
-        phone.setPattern("[\\d \\-\\+]+");
-        phone.addClassNames("mb-s");
-
-        Checkbox rememberDetails = new Checkbox("Remember personal details for next time");
-        rememberDetails.addClassNames("mt-s");
-
-        personalDetails.add(stepOne, header, name, email, phone, rememberDetails);
-        return personalDetails;
+        return dialogLayout;
     }
 
-    private Section createShippingAddressSection() {
+
+    Grid<SamplePerson> toAccntGrid = new Grid<>(SamplePerson.class, false);
+    private VerticalLayout createToAccntLayout() {
+
+        toAccntGrid.addColumn(SamplePerson::getFirstName).setHeader("First name");
+        toAccntGrid.addColumn(SamplePerson::getLastName).setHeader("Last name");
+        toAccntGrid.addColumn(SamplePerson::getEmail).setHeader("Email");
+        toAccntGrid.addColumn(SamplePerson::getPhone).setHeader("Phone");
+        toAccntGrid.addColumn(SamplePerson::getDateOfBirth).setHeader("DOB");
+        toAccntGrid.setVisible(false);
+
+
+        VerticalLayout dialogLayout = new VerticalLayout(toAccntGrid);
+        dialogLayout.setPadding(false);
+        dialogLayout.setAlignItems(FlexComponent.Alignment.STRETCH);
+        dialogLayout.getStyle().set("min-width", "300px")
+                .set("max-width", "100%").set("height", "100%");
+
+        return dialogLayout;
+    }
+
+    private Section fromAccntSelection() {
         Section shippingDetails = new Section();
         shippingDetails.addClassNames("flex", "flex-col", "mb-xl", "mt-m");
 
-        Paragraph stepTwo = new Paragraph("Checkout 2/3");
-        stepTwo.addClassNames("m-0", "text-s", "text-secondary");
-
-        H3 header = new H3("Shipping address");
+        H3 header = new H3("From");
         header.addClassNames("mb-m", "mt-s", "text-2xl");
 
         ComboBox<String> countrySelect = new ComboBox<>("Country");
         countrySelect.setRequiredIndicatorVisible(true);
         countrySelect.addClassNames("mb-s");
-
-        TextArea address = new TextArea("Street address");
-        address.setMaxLength(200);
-        address.setRequiredIndicatorVisible(true);
-        address.addClassNames("mb-s");
-
-        Div subSection = new Div();
-        subSection.addClassNames("flex", "flex-wrap", "gap-m");
-
-        TextField postalCode = new TextField("Postal Code");
-        postalCode.setRequiredIndicatorVisible(true);
-        postalCode.setPattern("[\\d \\p{L}]*");
-        postalCode.addClassNames("mb-s");
-
-        TextField city = new TextField("City");
-        city.setRequiredIndicatorVisible(true);
-        city.addClassNames("flex-grow", "mb-s");
-
-        subSection.add(postalCode, city);
-
-        ComboBox<String> stateSelect = new ComboBox<>("State");
-        stateSelect.setRequiredIndicatorVisible(true);
-
-        stateSelect.setItems(states);
-        stateSelect.setVisible(false);
         countrySelect.setItems(countries);
-        countrySelect
-                .addValueChangeListener(e -> stateSelect.setVisible(countrySelect.getValue().equals("United States")));
 
-        Checkbox sameAddress = new Checkbox("Billing address is the same as shipping address");
-        sameAddress.addClassNames("mt-s");
+        countrySelect.addValueChangeListener( val -> {
+            fromAccntGrid.setVisible(true);
+            List<SamplePerson> people = this.samplePersonService.findAll();
+            fromAccntGrid.setItems(people);
+//            fromGrid.setItems(query -> samplePersonService.list(
+//                            PageRequest.of(query.getPage(), query.getPageSize(), VaadinSpringDataHelpers.toSpringDataSort(query)))
+//                    .stream());
+        });
 
-        Checkbox rememberAddress = new Checkbox("Remember address for next time");
 
-        shippingDetails.add(stepTwo, header, countrySelect, address, subSection, stateSelect, sameAddress,
-                rememberAddress);
+        shippingDetails.add(header, countrySelect, createFromAccntLayout());
+//        shippingDetails.add(header, countrySelect,createFromGrid());
         return shippingDetails;
+    }
+
+    private Section toAccntSelection() {
+        Section shippingDetails = new Section();
+        shippingDetails.addClassNames("flex", "flex-col", "mb-xl", "mt-m");
+
+        H3 header = new H3("Send To");
+        header.addClassNames("mb-m", "mt-s", "text-2xl");
+
+        ComboBox<String> countrySelect = new ComboBox<>("Country");
+        countrySelect.setRequiredIndicatorVisible(true);
+        countrySelect.addClassNames("mb-s");
+        countrySelect.setItems(countries);
+
+        countrySelect.addValueChangeListener( val -> {
+            List<SamplePerson> toAccnt = this.samplePersonService.findAll();
+            toAccntGrid.setVisible(true);
+            toAccntGrid.setItems(toAccnt);
+//            toGrid.setDataProvider(DataProvider.ofCollection(samplePersonService.findAll()));
+        });
+
+//        shippingDetails.add(header, countrySelect,createToSection());
+        shippingDetails.add(header, countrySelect,createToAccntLayout());
+        return shippingDetails;
+    }
+
+
+
+
+
+    BeanTable<SamplePerson> fromGrid = new BeanTable<>(SamplePerson.class,false);
+    BeanTable<SamplePerson> toGrid = new BeanTable<>(SamplePerson.class,false);
+    private BeanTable createFromGrid(){
+        fromGrid.setClassName("fl-from-table");
+        fromGrid.setHtmlAllowed(true);
+        fromGrid.addColumn("first",SamplePerson::getFirstName);
+        fromGrid.addColumn("last",SamplePerson::getLastName);
+        fromGrid.addComponentColumn(null , file -> {
+            MenuBar menuBar = new MenuBar();
+            menuBar.addThemeVariants(MenuBarVariant.LUMO_TERTIARY);
+            MenuItem menuItem = menuBar.addItem(":");
+            menuItem.getElement().setAttribute("aria-label", "More options");
+            MenuItem preview = menuItem.getSubMenu().addItem("Preview");
+            preview.setVisible(false);
+            MenuItem edit = menuItem.getSubMenu().addItem("Edit");
+            edit.setVisible(false);
+            MenuItem delete = menuItem.getSubMenu().addItem("Delete");
+            delete.setVisible(false);
+            menuItem.addClickListener(menuItemClickEvent -> {
+                int val = new Random().nextInt(4);
+                if(val%2 == 0){
+                    preview.setVisible(true);
+                    edit.setVisible(true);
+                    delete.setVisible(false);
+
+                } else{
+                    preview.setVisible(true);
+                    delete.setVisible(true);
+                    edit.setVisible(false);
+                }
+            });
+            return menuBar;
+        });
+        return fromGrid;
+    }
+
+    private Div createToSection(){
+        Div div = new Div();
+        div.setClassName("table-wrapper");
+        div.add(createToGrid());
+        return div;
+    }
+
+    private BeanTable createToGrid(){
+        toGrid.setClassName("fl-to-table");
+        toGrid.setWidthFull();
+        toGrid.addColumn("first",SamplePerson::getFirstName);
+        toGrid.addColumn("last",SamplePerson::getLastName);
+        toGrid.addComponentColumn(null , file -> {
+            MenuBar menuBar = new MenuBar();
+            menuBar.addThemeVariants(MenuBarVariant.LUMO_TERTIARY);
+            MenuItem menuItem = menuBar.addItem(":");
+            menuItem.getElement().setAttribute("aria-label", "More options");
+            MenuItem preview = menuItem.getSubMenu().addItem("Preview");
+            preview.setVisible(false);
+            MenuItem edit = menuItem.getSubMenu().addItem("Edit");
+            edit.setVisible(false);
+            MenuItem delete = menuItem.getSubMenu().addItem("Delete");
+            delete.setVisible(false);
+            menuItem.addClickListener(menuItemClickEvent -> {
+                int val = new Random().nextInt(4);
+                if(val%2 == 0){
+                    preview.setVisible(true);
+                    edit.setVisible(true);
+                    delete.setVisible(false);
+
+                } else{
+                    preview.setVisible(true);
+                    delete.setVisible(true);
+                    edit.setVisible(false);
+                }
+            });
+            return menuBar;
+        });
+        return toGrid;
+    }
+
+    private Component createEditorLayout() {
+        VerticalLayout editorLayoutDiv = new VerticalLayout();
+        editorLayoutDiv.setClassName("editor-layout");
+
+        FormLayout formLayout = new FormLayout();
+        firstName = new TextField("First Name");
+        lastName = new TextField("Last Name");
+        email = new TextField("Email");
+        phone = new TextField("Phone");
+        dateOfBirth = new DatePicker("Date Of Birth");
+        occupation = new TextField("Occupation");
+        important = new Checkbox("Important");
+        formLayout.add(firstName, lastName, email, phone, dateOfBirth, occupation, important);
+
+        editorLayoutDiv.add(formLayout);
+        editorLayoutDiv.add(createButtonLayout());
+        return editorLayoutDiv;
+    }
+
+    private Component createButtonLayout() {
+        HorizontalLayout buttonLayout = new HorizontalLayout();
+        buttonLayout.setClassName("button-layout");
+        cancel.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        buttonLayout.add(save, cancel);
+        return buttonLayout;
     }
 
     private Component createPaymentInformationSection() {
         Section paymentInfo = new Section();
         paymentInfo.addClassNames("flex", "flex-col", "mb-xl", "mt-m");
 
-        Paragraph stepThree = new Paragraph("Checkout 3/3");
-        stepThree.addClassNames("m-0", "text-s", "text-secondary");
-
-        H3 header = new H3("Personal details");
+        H3 header = new H3("Send To");
         header.addClassNames("mb-m", "mt-s", "text-2xl");
 
         TextField cardHolder = new TextField("Cardholder name");
@@ -233,7 +386,7 @@ public class TransactionView extends Div {
 
         subSectionTwo.add(expirationMonth, expirationYear);
 
-        paymentInfo.add(stepThree, header, cardHolder, subSectionTwo);
+        paymentInfo.add( header, cardHolder, subSectionTwo);
         return paymentInfo;
     }
 
@@ -246,14 +399,19 @@ public class TransactionView extends Div {
 
         Button pay = new Button("Pay securely", new Icon(VaadinIcon.LOCK));
         pay.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
-
+        pay.addClickListener(evnt -> {
+            pay.getUI().ifPresent( ui ->{
+                ui.navigate(TransactionLandingPageView.class);
+            });
+        });
         footer.add(cancel, pay);
         return footer;
     }
 
     private Aside createAside() {
         Aside aside = new Aside();
-        aside.addClassNames("bg-contrast-5", "box-border", "p-l", "rounded-l", "sticky");
+        aside.addClassNames("bg-contrast-5", "box-border", "p-l", "rounded-l", "float");
+        aside.getStyle().set("position","sticky").set("top","0");
         Header headerSection = new Header();
         headerSection.addClassNames("flex", "items-center", "justify-between", "mb-m");
         H3 header = new H3("Order");
@@ -289,5 +447,32 @@ public class TransactionView extends Div {
 
         item.add(subSection, priceSpan);
         return item;
+    }
+
+    @Override
+    public void beforeEnter(BeforeEnterEvent event) {
+        Optional<UUID> samplePersonId = event.getRouteParameters().get(SAMPLEPERSON_ID).map(UUID::fromString);
+        if (samplePersonId.isPresent()) {
+            Optional<SamplePerson> samplePersonFromBackend = samplePersonService.get(samplePersonId.get());
+            if (samplePersonFromBackend.isPresent()) {
+                populateForm(samplePersonFromBackend.get());
+            } else {
+                Notification.show(
+                        String.format("The requested samplePerson was not found, ID = %s", samplePersonId.get()), 3000,
+                        Notification.Position.BOTTOM_START);
+                // when a row is selected but the data is no longer available,
+                // refresh grid
+//                event.forwardTo(TransactionLandingPageView.class);
+            }
+        }
+    }
+
+    private void populateForm(SamplePerson value) {
+        this.firstName.setValue(value.getFirstName());
+        this.lastName.setValue(value.getLastName());
+        this.email.setValue(value.getEmail());
+        this.phone.setValue(value.getPhone());
+        this.dateOfBirth.setValue(value.getDateOfBirth());
+        this.occupation.setValue(value.getOccupation());
     }
 }

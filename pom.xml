@@ -34,6 +34,10 @@
             </snapshots>
         </repository>
         <repository>
+            <id>vaadin-addons</id>
+            <url>https://maven.vaadin.com/vaadin-addons</url>
+        </repository>
+        <repository>
             <id>vaadin-prereleases</id>
             <url>
                 https://maven.vaadin.com/vaadin-prereleases/
@@ -79,6 +83,41 @@
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>org.vaadin.tatu</groupId>
+            <artifactId>beantable</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.vaadin.erik</groupId>
+            <artifactId>slidetab</artifactId>
+            <version>4.0.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.vaadin.addons.yuri0x7c1.bslayout</groupId>
+            <artifactId>bs-layout</artifactId>
+            <version>1.0.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.appreciated</groupId>
+            <artifactId>apexcharts</artifactId>
+            <version>23.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.vaadin.addons.pjp</groupId>
+            <artifactId>QuestionnaireVaadin</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.vaadin.addons.f0rce.uploadhelper</groupId>
+            <artifactId>upload-helper</artifactId>
+            <version>1.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.vaadin.componentfactory</groupId>
+            <artifactId>ag-grid-flow</artifactId>
+            <version>1.2.1</version>
+        </dependency>
         <dependency>
             <groupId>com.vaadin</groupId>
             <!-- Replace artifactId with vaadin-core to use only free components -->

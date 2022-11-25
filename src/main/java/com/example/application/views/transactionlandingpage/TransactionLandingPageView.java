@@ -2,20 +2,34 @@ package com.example.application.views.transactionlandingpage;
 
 import com.example.application.data.entity.SamplePerson;
 import com.example.application.data.service.SamplePersonService;
+import com.example.application.views.transaction.TransactionView;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.applayout.DrawerToggle;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.contextmenu.HasMenuItems;
+import com.vaadin.flow.component.contextmenu.MenuItem;
+import com.vaadin.flow.component.contextmenu.SubMenu;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dependency.Uses;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.H3;
+import com.vaadin.flow.component.html.Image;
 import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.menubar.MenuBar;
+import com.vaadin.flow.component.menubar.MenuBarVariant;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.splitlayout.SplitLayout;
+import com.vaadin.flow.component.splitlayout.SplitLayoutVariant;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.binder.BeanValidationBinder;
 import com.vaadin.flow.data.binder.ValidationException;
@@ -26,19 +40,31 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.spring.data.VaadinSpringDataHelpers;
 import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
+import org.vaadin.erik.SlideMode;
+import org.vaadin.erik.SlideTab;
+import org.vaadin.erik.SlideTabBuilder;
+import org.vaadin.erik.SlideTabPosition;
 
 @PageTitle("TransactionLandingPage")
 @Route(value = "transactionLandingPage/:samplePersonID?/:action?(edit)")
 @Uses(Icon.class)
-public class TransactionLandingPageView extends Div implements BeforeEnterObserver {
+public class TransactionLandingPageView extends VerticalLayout {
+
+    private Logger log = LoggerFactory.getLogger(TransactionLandingPageView.class);
 
     private final String SAMPLEPERSON_ID = "samplePersonID";
-    private final String SAMPLEPERSON_EDIT_ROUTE_TEMPLATE = "transactionLandingPage/%s/edit";
+    private final String SAMPLEPERSON_EDIT_ROUTE_TEMPLATE = "transaction/%s/edit";
 
     private final Grid<SamplePerson> grid = new Grid<>(SamplePerson.class, false);
+
+    private final SamplePersonService samplePersonService;
 
     private TextField firstName;
     private TextField lastName;
@@ -47,28 +73,57 @@ public class TransactionLandingPageView extends Div implements BeforeEnterObserv
     private DatePicker dateOfBirth;
     private TextField occupation;
     private Checkbox important;
+    private Button cancel = new Button("cancel");
+    private Button save = new Button("Save");
 
-    private final Button cancel = new Button("Cancel");
-    private final Button save = new Button("Save");
-
-    private final BeanValidationBinder<SamplePerson> binder;
-
-    private SamplePerson samplePerson;
-
-    private final SamplePersonService samplePersonService;
+    private final SplitLayout splitLayout = new SplitLayout();
 
     @Autowired
     public TransactionLandingPageView(SamplePersonService samplePersonService) {
         this.samplePersonService = samplePersonService;
         addClassNames("transaction-landing-page-view");
+        setSizeFull();
+        splitLayout.setSizeFull();
+
+
+        Button filter = new Button(new Icon(VaadinIcon.FILTER));
+        filter.addThemeVariants(ButtonVariant.LUMO_ERROR);
+        filter.getStyle().set("margin-inline-end", "auto");
+        filter.addClickListener(evnt -> {
+           splitLayout.getPrimaryComponent().setVisible(true);
+           splitLayout.getPrimaryComponent().getElement().getStyle().set("width","40%");
+        });
+
+        Button create = new Button("Create Transaction",new Icon(VaadinIcon.PLUS));
+        create.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+
+        MenuBar action = new MenuBar();
+        action.addThemeVariants(MenuBarVariant.LUMO_ICON,
+                MenuBarVariant.LUMO_PRIMARY);
+        MenuItem item = action.addItem("Actions");
+        SubMenu subItems = item.getSubMenu();
+        subItems.addItem("Save as draft");
+        subItems.addItem("Save as copy");
+        subItems.addItem("Save and publish");
+
+
+        HorizontalLayout horizontalLayout = new HorizontalLayout(filter,create,action);
+        horizontalLayout.setWidthFull();
+        horizontalLayout.setJustifyContentMode(JustifyContentMode.END);
+        add(horizontalLayout);
+        splitLayout.addThemeVariants(SplitLayoutVariant.LUMO_MINIMAL);
+        splitLayout.addToPrimary(createEditorLayout());
+        VerticalLayout gridWrapper = new VerticalLayout();
+        gridWrapper.setSizeFull();
+        gridWrapper.add(grid);
+        grid.setSizeFull();
+        splitLayout.addToSecondary(gridWrapper);
+        splitLayout.getPrimaryComponent().setVisible(false);
 
         // Create UI
-        SplitLayout splitLayout = new SplitLayout();
-
-        createGridLayout(splitLayout);
-        createEditorLayout(splitLayout);
-
         add(splitLayout);
+
+
 
         // Configure Grid
         grid.addColumn("firstName").setAutoWidth(true);
@@ -77,14 +132,34 @@ public class TransactionLandingPageView extends Div implements BeforeEnterObserv
         grid.addColumn("phone").setAutoWidth(true);
         grid.addColumn("dateOfBirth").setAutoWidth(true);
         grid.addColumn("occupation").setAutoWidth(true);
-        LitRenderer<SamplePerson> importantRenderer = LitRenderer.<SamplePerson>of(
-                "<vaadin-icon icon='vaadin:${item.icon}' style='width: var(--lumo-icon-size-s); height: var(--lumo-icon-size-s); color: ${item.color};'></vaadin-icon>")
-                .withProperty("icon", important -> important.isImportant() ? "check" : "minus").withProperty("color",
-                        important -> important.isImportant()
-                                ? "var(--lumo-primary-text-color)"
-                                : "var(--lumo-disabled-text-color)");
 
-        grid.addColumn(importantRenderer).setHeader("Important").setAutoWidth(true);
+        grid.addComponentColumn(file -> {
+            MenuBar menuBar = new MenuBar();
+            menuBar.addThemeVariants(MenuBarVariant.LUMO_TERTIARY);
+            MenuItem menuItem = menuBar.addItem(":");
+            menuItem.getElement().setAttribute("aria-label", "More options");
+            MenuItem preview = menuItem.getSubMenu().addItem("Preview");
+            preview.setVisible(false);
+            MenuItem edit = menuItem.getSubMenu().addItem("Edit");
+            edit.setVisible(false);
+            MenuItem delete = menuItem.getSubMenu().addItem("Delete");
+            delete.setVisible(false);
+            menuItem.addClickListener(menuItemClickEvent -> {
+                int val = new Random().nextInt(4);
+                if(val%2 == 0){
+                    preview.setVisible(true);
+                    edit.setVisible(true);
+                    delete.setVisible(false);
+
+                } else{
+                    preview.setVisible(true);
+                    delete.setVisible(true);
+                    edit.setVisible(false);
+                }
+            });
+            return menuBar;
+        }).setWidth("70px").setFlexGrow(0);
+
 
         grid.setItems(query -> samplePersonService.list(
                 PageRequest.of(query.getPage(), query.getPageSize(), VaadinSpringDataHelpers.toSpringDataSort(query)))
@@ -95,68 +170,15 @@ public class TransactionLandingPageView extends Div implements BeforeEnterObserv
         grid.asSingleSelect().addValueChangeListener(event -> {
             if (event.getValue() != null) {
                 UI.getCurrent().navigate(String.format(SAMPLEPERSON_EDIT_ROUTE_TEMPLATE, event.getValue().getId()));
-            } else {
-                clearForm();
-                UI.getCurrent().navigate(TransactionLandingPageView.class);
             }
         });
 
-        // Configure Form
-        binder = new BeanValidationBinder<>(SamplePerson.class);
-
-        // Bind fields. This is where you'd define e.g. validation rules
-
-        binder.bindInstanceFields(this);
-
-        cancel.addClickListener(e -> {
-            clearForm();
-            refreshGrid();
-        });
-
-        save.addClickListener(e -> {
-            try {
-                if (this.samplePerson == null) {
-                    this.samplePerson = new SamplePerson();
-                }
-                binder.writeBean(this.samplePerson);
-                samplePersonService.update(this.samplePerson);
-                clearForm();
-                refreshGrid();
-                Notification.show("SamplePerson details stored.");
-                UI.getCurrent().navigate(TransactionLandingPageView.class);
-            } catch (ValidationException validationException) {
-                Notification.show("An exception happened while trying to store the samplePerson details.");
-            }
-        });
 
     }
 
-    @Override
-    public void beforeEnter(BeforeEnterEvent event) {
-        Optional<UUID> samplePersonId = event.getRouteParameters().get(SAMPLEPERSON_ID).map(UUID::fromString);
-        if (samplePersonId.isPresent()) {
-            Optional<SamplePerson> samplePersonFromBackend = samplePersonService.get(samplePersonId.get());
-            if (samplePersonFromBackend.isPresent()) {
-                populateForm(samplePersonFromBackend.get());
-            } else {
-                Notification.show(
-                        String.format("The requested samplePerson was not found, ID = %s", samplePersonId.get()), 3000,
-                        Notification.Position.BOTTOM_START);
-                // when a row is selected but the data is no longer available,
-                // refresh grid
-                refreshGrid();
-                event.forwardTo(TransactionLandingPageView.class);
-            }
-        }
-    }
-
-    private void createEditorLayout(SplitLayout splitLayout) {
-        Div editorLayoutDiv = new Div();
+    private Component createEditorLayout() {
+        VerticalLayout editorLayoutDiv = new VerticalLayout();
         editorLayoutDiv.setClassName("editor-layout");
-
-        Div editorDiv = new Div();
-        editorDiv.setClassName("editor");
-        editorLayoutDiv.add(editorDiv);
 
         FormLayout formLayout = new FormLayout();
         firstName = new TextField("First Name");
@@ -168,40 +190,52 @@ public class TransactionLandingPageView extends Div implements BeforeEnterObserv
         important = new Checkbox("Important");
         formLayout.add(firstName, lastName, email, phone, dateOfBirth, occupation, important);
 
-        editorDiv.add(formLayout);
-        createButtonLayout(editorLayoutDiv);
-
-        splitLayout.addToSecondary(editorLayoutDiv);
+        editorLayoutDiv.add(formLayout);
+        editorLayoutDiv.add(createButtonLayout());
+        return editorLayoutDiv;
     }
 
-    private void createButtonLayout(Div editorLayoutDiv) {
+    private Component createButtonLayout() {
         HorizontalLayout buttonLayout = new HorizontalLayout();
         buttonLayout.setClassName("button-layout");
+        cancel.addClickListener(l -> {
+            splitLayout.getPrimaryComponent().setVisible(false);
+        });
+        save.addClickListener(l -> {
+            splitLayout.getPrimaryComponent().setVisible(false);
+        });
         cancel.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         buttonLayout.add(save, cancel);
-        editorLayoutDiv.add(buttonLayout);
+        return buttonLayout;
     }
 
-    private void createGridLayout(SplitLayout splitLayout) {
-        Div wrapper = new Div();
-        wrapper.setClassName("grid-wrapper");
-        splitLayout.addToPrimary(wrapper);
-        wrapper.add(grid);
+    private MenuItem createIconItem(HasMenuItems menu, VaadinIcon iconName,
+                                    String label, String ariaLabel) {
+        return createIconItem(menu, iconName, label, ariaLabel, false);
+    }
+    private MenuItem createIconItem(HasMenuItems menu, VaadinIcon iconName,
+                                    String label, String ariaLabel, boolean isChild) {
+        Icon icon = new Icon(iconName);
+
+        if (isChild) {
+            icon.getStyle().set("width", "var(--lumo-icon-size-s)");
+            icon.getStyle().set("height", "var(--lumo-icon-size-s)");
+            icon.getStyle().set("marginRight", "var(--lumo-space-s)");
+        }
+
+        MenuItem item = menu.addItem(icon, e -> {
+        });
+
+        if (ariaLabel != null) {
+            item.getElement().setAttribute("aria-label", ariaLabel);
+        }
+
+        if (label != null) {
+            item.add(new Text(label));
+        }
+
+        return item;
     }
 
-    private void refreshGrid() {
-        grid.select(null);
-        grid.getDataProvider().refreshAll();
-    }
-
-    private void clearForm() {
-        populateForm(null);
-    }
-
-    private void populateForm(SamplePerson value) {
-        this.samplePerson = value;
-        binder.readBean(this.samplePerson);
-
-    }
 }
